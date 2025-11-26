@@ -1,4 +1,4 @@
-name: Build and Release c-ray (Windows x64)
+name: Build and Release c-ray (Cross-platform)
 
 on:
   push:
@@ -13,55 +13,125 @@ jobs:
     defaults:
       run:
         shell: cmd
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1
 
-      - name: Configure CMake (x64 only)
+      - name: Configure CMake
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
-      - name: Build Release (x64)
+      - name: Build Release
         run: cmake --build build --config Release -- /p:Platform=x64
 
-      - name: Prepare release directory
+      - name: Prepare release folder
         run: |
           if not exist dist mkdir dist
           if exist build\Release\c-ray.exe copy build\Release\c-ray.exe dist\
           if exist "%SDL2DIR%\SDL2.dll" copy "%SDL2DIR%\SDL2.dll" dist\
 
-      - name: Archive binaries
-        run: powershell Compress-Archive -Path dist\* -DestinationPath dist\c-ray.zip
+      - name: Archive
+        run: powershell Compress-Archive -Path dist\* -DestinationPath dist\c-ray-windows-x64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: c-ray-x64
-          path: dist\c-ray.zip
+          name: c-ray-windows-x64
+          path: dist/c-ray-windows-x64.zip
+
+  build_linux_x64:
+    name: Build Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y build-essential cmake libsdl2-dev
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Prepare release folder
+        run: |
+          mkdir -p dist
+          cp build/c-ray dist/
+
+      - name: Archive
+        run: zip -r dist/c-ray-linux-x64.zip dist/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-ray-linux-x64
+          path: dist/c-ray-linux-x64.zip
+
+  build_macos_x64:
+    name: Build macOS x64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install cmake sdl2
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Prepare release folder
+        run: |
+          mkdir -p dist
+          cp build/c-ray dist/
+
+      - name: Archive
+        run: zip -r dist/c-ray-macos-x64.zip dist/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-ray-macos-x64
+          path: dist/c-ray-macos-x64.zip
 
   release:
     name: Publish GitHub Release
-    needs: build_windows_x64
+    needs: [build_windows_x64, build_linux_x64, build_macos_x64]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download artifact
+      - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: c-ray-x64
-          path: dist
+          name: c-ray-windows-x64
+          path: dist/windows
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: c-ray-linux-x64
+          path: dist/linux
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: c-ray-macos-x64
+          path: dist/macos
 
       - name: List downloaded files
-        run: ls dist/
+        run: ls -R dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: dist/c-ray.zip
+          files: |
+            dist/windows/c-ray-windows-x64.zip
+            dist/linux/c-ray-linux-x64.zip
+            dist/macos/c-ray-macos-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
