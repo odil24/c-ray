@@ -29,8 +29,8 @@ jobs:
 
       - name: Prepare release directory
         run: |
-          mkdir dist
-          copy build\Release\c-ray.exe dist\
+          if not exist dist mkdir dist
+          if exist build\Release\c-ray.exe copy build\Release\c-ray.exe dist\
           if exist "%SDL2DIR%\SDL2.dll" copy "%SDL2DIR%\SDL2.dll" dist\
 
       - name: Archive binaries
