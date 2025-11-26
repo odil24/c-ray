@@ -1,61 +1,26 @@
-name: Build and Release c-ray (Windows x64)
-
-on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-
 jobs:
   build_windows_x64:
-    name: Build on Windows x64
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: cmd
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1
-
-      - name: Configure CMake (x64 only)
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-
-      - name: Build Release (x64)
-        run: cmake --build build --config Release -- /p:Platform=x64
-
-      - name: Debug — list output directory
-        run: dir build\Release
-
-      - name: Upload artifact (c-ray.exe)
-        uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - run: cmake --build build --config Release -- /p:Platform=x64
+      - uses: actions/upload-artifact@v4
         with:
           name: c-ray-x64
           path: build\Release\c-ray.exe
 
   release:
-    name: Publish Release
     needs: build_windows_x64
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download built artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: c-ray-x64
           path: dist
-
-      - name: List downloaded artifacts
-        run: ls -R dist
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
           files: dist/c-ray.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
