@@ -15,32 +15,29 @@ jobs:
         shell: cmd
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up MSBuild
+      - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1
 
       - name: Configure CMake (x64 only)
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
-      - name: Build Release (x64 only)
+      - name: Build Release (x64)
         run: cmake --build build --config Release -- /p:Platform=x64
 
-      - name: Copy SDL2 DLL (if present)
-        run: |
-          if exist "%SDL2DIR%\SDL2.dll" (
-            copy "%SDL2DIR%\SDL2.dll" "build\\Release\\"
-          )
+      - name: Debug — list output directory
+        run: dir build\Release
 
-      - name: Upload artifact
+      - name: Upload artifact (c-ray.exe)
         uses: actions/upload-artifact@v4
         with:
-          name: c-ray-windows-x64
-          path: build\\Release\\c-ray.exe
+          name: c-ray-x64
+          path: build\Release\c-ray.exe
 
   release:
-    name: Create GitHub Release
+    name: Publish Release
     needs: build_windows_x64
     runs-on: ubuntu-latest
 
@@ -48,13 +45,17 @@ jobs:
       - name: Download built artifact
         uses: actions/download-artifact@v4
         with:
-          name: c-ray-windows-x64
+          name: c-ray-x64
+          path: dist
+
+      - name: List downloaded artifacts
+        run: ls -R dist
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${ { github.ref_name } }
-          name: Release ${ { github.ref_name } }
-          files: c-ray-windows-x64/c-ray.exe
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: dist/c-ray.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
