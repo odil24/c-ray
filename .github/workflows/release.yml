@@ -1,26 +1,67 @@
+name: Build and Release c-ray (Windows x64)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
 jobs:
   build_windows_x64:
+    name: Build Windows x64
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: cmd
+
     steps:
-      - uses: actions/checkout@v4
-      - run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-      - run: cmake --build build --config Release -- /p:Platform=x64
-      - uses: actions/upload-artifact@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1
+
+      - name: Configure CMake (x64 only)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build Release (x64)
+        run: cmake --build build --config Release -- /p:Platform=x64
+
+      - name: Prepare release directory
+        run: |
+          mkdir dist
+          copy build\Release\c-ray.exe dist\
+          if exist "%SDL2DIR%\SDL2.dll" copy "%SDL2DIR%\SDL2.dll" dist\
+
+      - name: Archive binaries
+        run: powershell Compress-Archive -Path dist\* -DestinationPath dist\c-ray.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: c-ray-x64
-          path: build\Release\c-ray.exe
+          path: dist\c-ray.zip
 
   release:
+    name: Publish GitHub Release
     needs: build_windows_x64
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v4
         with:
           name: c-ray-x64
           path: dist
-      - uses: softprops/action-gh-release@v2
+
+      - name: List downloaded files
+        run: ls dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: dist/c-ray.exe
+          name: Release ${{ github.ref_name }}
+          files: dist/c-ray.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
