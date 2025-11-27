@@ -21,43 +21,48 @@ jobs:
       # Configure CMake
       - name: Configure CMake (Linux/macOS)
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure CMake (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
       # Build
       - name: Build (Linux/macOS)
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: cmake --build build --config Release -- -j$(nproc)
 
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: cmake --build build --config Release
 
       # Run sample render with timing
       - name: Run Sample Render with Timing (Linux/macOS)
         id: render_unix
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
           /usr/bin/time -p ./build/c-ray -s scenes/cornell.json -o output.png 2> time.txt
-          echo "render_time=$(grep real time.txt | awk '{print $2}')" >> $GITHUB_OUTPUT
+          echo "render_time=$(grep real time.txt | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Run Sample Render with Timing (Windows)
         id: render_win
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          powershell -Command "
-            $t = Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png };
-            $seconds = $t.TotalSeconds;
-            Set-Content -Path time.txt -Value $seconds;
-            echo \"render_time=$seconds\" >> $env:GITHUB_OUTPUT
-          "
+          $t = Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png }
+          $seconds = [math]::Round($t.TotalSeconds, 3)
+          Set-Content -Path time.txt -Value $seconds
+          "render_time=$seconds" >> $env:GITHUB_OUTPUT
 
       # Verify render hash
       - name: Verify Render Hash (Linux/macOS)
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
           expectedHash="PUT-YOUR-REFERENCE-HASH-HERE"
           actualHash=$(sha256sum output.png | cut -d ' ' -f1)
@@ -70,16 +75,15 @@ jobs:
 
       - name: Verify Render Hash (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          powershell -Command "
-            $hashLine = (Get-FileHash output.png -Algorithm SHA256).Hash;
-            if ($hashLine -ne 'PUT-YOUR-REFERENCE-HASH-HERE') {
-              Write-Error '❌ Render output hash mismatch!';
-              exit 1
-            } else {
-              Write-Output '✅ Render output matches expected hash.'
-            }
-          "
+          $hashLine = (Get-FileHash output.png -Algorithm SHA256).Hash
+          if ($hashLine -ne 'PUT-YOUR-REFERENCE-HASH-HERE') {
+            Write-Error '❌ Render output hash mismatch!'
+            exit 1
+          } else {
+            Write-Output '✅ Render output matches expected hash.'
+          }
 
       # Upload artifacts
       - name: Upload Render Output
@@ -94,6 +98,13 @@ jobs:
           name: render-time-${{ matrix.os }}
           path: time.txt
 
-      # Print summary of render times
-      - name: Show Render Time
-        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_unix.outputs.render_time || steps.render_win.outputs.render_time }} seconds"
+      # Print OS-specific summary of render times (avoids combined expression)
+      - name: Show Render Time (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_unix.outputs.render_time }} seconds"
+
+      - name: Show Render Time (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_win.outputs.render_time }} seconds"
