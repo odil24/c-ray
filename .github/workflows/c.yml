@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
-    name: ${{ matrix.os }} Build & Test
+    name: ${{ matrix.os }} Build & Render
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -40,72 +40,20 @@ jobs:
         shell: pwsh
         run: cmake --build build --config Release
 
-      # Run sample render with timing
-      - name: Run Sample Render with Timing (Linux/macOS)
-        id: render_unix
+      # Run one sample render
+      - name: Run Sample Render (Linux/macOS)
         if: matrix.os != 'windows-latest'
         shell: bash
-        run: |
-          /usr/bin/time -p ./build/c-ray -s scenes/cornell.json -o output.png 2> time.txt
-          echo "render_time=$(grep real time.txt | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: ./build/c-ray -s scenes/cornell.json -o output.png
 
-      - name: Run Sample Render with Timing (Windows)
-        id: render_win
+      - name: Run Sample Render (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: |
-          $t = Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png }
-          $seconds = [math]::Round($t.TotalSeconds, 3)
-          Set-Content -Path time.txt -Value $seconds
-          "render_time=$seconds" >> $env:GITHUB_OUTPUT
+        run: ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png
 
-      # Verify render hash
-      - name: Verify Render Hash (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          expectedHash="PUT-YOUR-REFERENCE-HASH-HERE"
-          actualHash=$(sha256sum output.png | cut -d ' ' -f1)
-          if [ "$actualHash" != "$expectedHash" ]; then
-            echo "❌ Render output hash mismatch!"
-            exit 1
-          else
-            echo "✅ Render output matches expected hash."
-          fi
-
-      - name: Verify Render Hash (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          $expectedHash = "PUT-YOUR-REFERENCE-HASH-HERE"
-          $actualHash = (Get-FileHash output.png -Algorithm SHA256).Hash
-          if ($actualHash -ne $expectedHash) {
-            Write-Error "❌ Render output hash mismatch!"
-            exit 1
-          } else {
-            Write-Output "✅ Render output matches expected hash."
-          }
-
-      # Upload artifacts
+      # Upload render artifact
       - name: Upload Render Output
         uses: actions/upload-artifact@v4
         with:
-          name: sample-render-${{ matrix.os }}
+          name: render-${{ matrix.os }}
           path: output.png
-
-      - name: Upload Timing Log
-        uses: actions/upload-artifact@v4
-        with:
-          name: render-time-${{ matrix.os }}
-          path: time.txt
-
-      # Print OS-specific summary of render times
-      - name: Show Render Time (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_unix.outputs.render_time }} seconds"
-
-      - name: Show Render Time (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_win.outputs.render_time }} seconds"
