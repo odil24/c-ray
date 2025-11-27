@@ -38,13 +38,22 @@ jobs:
 
       # Run sample render with timing
       - name: Run Sample Render with Timing (Linux/macOS)
+        id: render_unix
         if: matrix.os != 'windows-latest'
-        run: /usr/bin/time -p ./build/c-ray -s scenes/cornell.json -o output.png 2> time.txt
+        run: |
+          /usr/bin/time -p ./build/c-ray -s scenes/cornell.json -o output.png 2> time.txt
+          echo "render_time=$(grep real time.txt | awk '{print $2}')" >> $GITHUB_OUTPUT
 
       - name: Run Sample Render with Timing (Windows)
+        id: render_win
         if: matrix.os == 'windows-latest'
         run: |
-          powershell -Command "Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png } | Out-File time.txt"
+          powershell -Command "
+            $t = Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png };
+            $seconds = $t.TotalSeconds;
+            Set-Content -Path time.txt -Value $seconds;
+            echo \"render_time=$seconds\" >> $env:GITHUB_OUTPUT
+          "
 
       # Verify render hash
       - name: Verify Render Hash (Linux/macOS)
@@ -84,3 +93,7 @@ jobs:
         with:
           name: render-time-${{ matrix.os }}
           path: time.txt
+
+      # Print summary of render times
+      - name: Show Render Time
+        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_unix.outputs.render_time || steps.render_win.outputs.render_time }} seconds"
