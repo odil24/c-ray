@@ -18,54 +18,61 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: microsoft/setup-msbuild@v1.0.2
 
-      - name: Configure CMake
-        run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-          else
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          fi
+      # Configure CMake
+      - name: Configure CMake (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build
-        run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cmake --build build --config Release
-          else
-            cmake --build build --config Release -- -j$(nproc)
-          fi
+      - name: Configure CMake (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
-      - name: Run Sample Render with Timing
-        run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            powershell -Command "Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png } | Out-File time.txt"
-          else
-            /usr/bin/time -p ./build/c-ray -s scenes/cornell.json -o output.png 2> time.txt
-          fi
+      # Build
+      - name: Build (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: cmake --build build --config Release -- -j$(nproc)
 
-      - name: Verify Render Hash
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cmake --build build --config Release
+
+      # Run sample render with timing
+      - name: Run Sample Render with Timing (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: /usr/bin/time -p ./build/c-ray -s scenes/cornell.json -o output.png 2> time.txt
+
+      - name: Run Sample Render with Timing (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          powershell -Command "Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png } | Out-File time.txt"
+
+      # Verify render hash
+      - name: Verify Render Hash (Linux/macOS)
+        if: matrix.os != 'windows-latest'
         run: |
           expectedHash="PUT-YOUR-REFERENCE-HASH-HERE"
-
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            powershell -Command "
-              $hashLine = (Get-FileHash output.png -Algorithm SHA256).Hash;
-              if ($hashLine -ne '$expectedHash') {
-                Write-Error '❌ Render output hash mismatch!';
-                exit 1
-              } else {
-                Write-Output '✅ Render output matches expected hash.'
-              }
-            "
+          actualHash=$(sha256sum output.png | cut -d ' ' -f1)
+          if [ "$actualHash" != "$expectedHash" ]; then
+            echo "❌ Render output hash mismatch!"
+            exit 1
           else
-            actualHash=$(sha256sum output.png | cut -d ' ' -f1)
-            if [ "$actualHash" != "$expectedHash" ]; then
-              echo '❌ Render output hash mismatch!'
-              exit 1
-            else
-              echo '✅ Render output matches expected hash.'
-            fi
+            echo "✅ Render output matches expected hash."
           fi
 
+      - name: Verify Render Hash (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          powershell -Command "
+            $hashLine = (Get-FileHash output.png -Algorithm SHA256).Hash;
+            if ($hashLine -ne 'PUT-YOUR-REFERENCE-HASH-HERE') {
+              Write-Error '❌ Render output hash mismatch!';
+              exit 1
+            } else {
+              Write-Output '✅ Render output matches expected hash.'
+            }
+          "
+
+      # Upload artifacts
       - name: Upload Render Output
         uses: actions/upload-artifact@v4
         with:
