@@ -20,18 +20,8 @@ jobs:
         shell: pwsh
         run: cmake --build build --config Release
 
-      - name: Run Sample Render
-        shell: pwsh
-        run: .\build\Release\c-ray.exe -s scenes\cornell.json -o output.png
-
       - name: Upload Binaries
         uses: actions/upload-artifact@v4
         with:
           name: c-ray-windows-binaries
           path: build/Release/*.exe
-
-      - name: Upload Render Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: c-ray-windows-render
-          path: output.png
