@@ -42,14 +42,21 @@ jobs:
 
       # Run one sample render
       - name: Run Sample Render (Linux/macOS)
+        id: render_unix
         if: matrix.os != 'windows-latest'
         shell: bash
-        run: ./build/c-ray -s scenes/cornell.json -o output.png
+        run: |
+          ./build/c-ray -s scenes/cornell.json -o output.png
+          echo "render_time=$(date +%s)" >> $GITHUB_OUTPUT
 
       - name: Run Sample Render (Windows)
+        id: render_win
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png
+        run: |
+          $t = Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png }
+          $seconds = [math]::Round($t.TotalSeconds, 3)
+          "render_time=$seconds" >> $env:GITHUB_OUTPUT
 
       # Upload render artifact
       - name: Upload Render Output
@@ -57,3 +64,12 @@ jobs:
         with:
           name: render-${{ matrix.os }}
           path: output.png
+
+      # Show render time summary
+      - name: Show Render Time (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_unix.outputs.render_time }} seconds"
+
+      - name: Show Render Time (Windows)
+        if: matrix.os == 'windows-latest'
+        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_win.outputs.render_time }} seconds"
