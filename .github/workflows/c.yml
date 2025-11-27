@@ -77,12 +77,13 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $hashLine = (Get-FileHash output.png -Algorithm SHA256).Hash
-          if ($hashLine -ne 'PUT-YOUR-REFERENCE-HASH-HERE') {
-            Write-Error '❌ Render output hash mismatch!'
+          $expectedHash = "PUT-YOUR-REFERENCE-HASH-HERE"
+          $actualHash = (Get-FileHash output.png -Algorithm SHA256).Hash
+          if ($actualHash -ne $expectedHash) {
+            Write-Error "❌ Render output hash mismatch!"
             exit 1
           } else {
-            Write-Output '✅ Render output matches expected hash.'
+            Write-Output "✅ Render output matches expected hash."
           }
 
       # Upload artifacts
@@ -98,7 +99,7 @@ jobs:
           name: render-time-${{ matrix.os }}
           path: time.txt
 
-      # Print OS-specific summary of render times (avoids combined expression)
+      # Print OS-specific summary of render times
       - name: Show Render Time (Linux/macOS)
         if: matrix.os != 'windows-latest'
         shell: bash
