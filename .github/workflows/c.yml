@@ -1,75 +1,43 @@
-name: C-ray CI
+name: C-ray Windows CI
 
 on: [push, pull_request]
 
 jobs:
-  build:
-    name: ${{ matrix.os }} Build & Render
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  build-windows:
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # Windows needs MSBuild setup
-      - name: Setup MSBuild (Windows only)
-        if: matrix.os == 'windows-latest'
+      # Setup MSBuild for Visual Studio builds
+      - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.0.2
 
-      # Configure CMake
-      - name: Configure CMake (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Configure CMake (Windows)
-        if: matrix.os == 'windows-latest'
+      # Configure CMake for Windows
+      - name: Configure CMake
         shell: pwsh
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
-      # Build
-      - name: Build (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: cmake --build build --config Release -- -j$(nproc)
-
-      - name: Build (Windows)
-        if: matrix.os == 'windows-latest'
+      # Build binaries
+      - name: Build
         shell: pwsh
         run: cmake --build build --config Release
 
       # Run one sample render
-      - name: Run Sample Render (Linux/macOS)
-        id: render_unix
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          ./build/c-ray -s scenes/cornell.json -o output.png
-          echo "render_time=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: Run Sample Render (Windows)
-        id: render_win
-        if: matrix.os == 'windows-latest'
+      - name: Run Sample Render
         shell: pwsh
-        run: |
-          $t = Measure-Command { ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png }
-          $seconds = [math]::Round($t.TotalSeconds, 3)
-          "render_time=$seconds" >> $env:GITHUB_OUTPUT
+        run: ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png
 
-      # Upload render artifact
+      # Upload compiled binaries
+      - name: Upload Binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-ray-windows-binaries
+          path: build/Release/*.exe
+
+      # Upload render output
       - name: Upload Render Output
         uses: actions/upload-artifact@v4
         with:
-          name: render-${{ matrix.os }}
+          name: c-ray-windows-render
           path: output.png
-
-      # Show render time summary
-      - name: Show Render Time (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_unix.outputs.render_time }} seconds"
-
-      - name: Show Render Time (Windows)
-        if: matrix.os == 'windows-latest'
-        run: echo "Render time on ${{ matrix.os }}: ${{ steps.render_win.outputs.render_time }} seconds"
