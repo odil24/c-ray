@@ -9,33 +9,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Setup MSBuild for Visual Studio builds
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.0.2
 
-      # Configure CMake for Windows
       - name: Configure CMake
         shell: pwsh
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
-      # Build binaries
       - name: Build
         shell: pwsh
         run: cmake --build build --config Release
 
-      # Run one sample render
       - name: Run Sample Render
         shell: pwsh
-        run: ./build/Release/c-ray.exe -s scenes/cornell.json -o output.png
+        run: .\build\Release\c-ray.exe -s scenes\cornell.json -o output.png
 
-      # Upload compiled binaries
       - name: Upload Binaries
         uses: actions/upload-artifact@v4
         with:
           name: c-ray-windows-binaries
           path: build/Release/*.exe
 
-      # Upload render output
       - name: Upload Render Output
         uses: actions/upload-artifact@v4
         with:
